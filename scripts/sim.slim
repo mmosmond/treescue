@@ -1,0 +1,69 @@
+initialize() {
+	defineConstant("simID", getSeed()); //get the random seed to label temporary file
+	
+	initializeSLiMModelType("nonWF"); //non Wright Fisher model
+	initializeTreeSeq(); //record the tree
+
+	initializeMutationType("m1", h, "f", s); //beneficial mutation characteristics
+	m1.mutationStackPolicy = "f"; //keep first mutation
+	initializeMutationType("m2", 0.5, "f", 0.0); //neutral mutations (note heritability of 0.5 has no affect)
+	initializeGenomicElementType("g1", m1, 1.0); //define element g1 to have beneficial mutations
+	initializeGenomicElementType("g2", m2, 1.0); //define element g2 to have neutral mutations
+	defineConstant("L0", asInteger(round(L/2))); //location of selected site (middle of simulated region)
+	initializeGenomicElement(g1, L0, L0); //element g1 is just one site
+	initializeGenomicElement(g2, 0, L0 - 1); // element g2 is everything to the left...
+	initializeGenomicElement(g2, L0 + 1, L); // ...and everything to the right of LO
+	initializeMutationRate(c(0,u,0), c(L0-1, L0, L)); //mutation rate per site 
+	initializeRecombinationRate(r); //recombination rate between sites
+}
+reproduction() { //occurs immediately before early events
+	for (i in 1:B) //B matings per parent
+		subpop.addCrossed(individual, subpop.sampleIndividuals(1)); //random mating, 1 offspring per pair
+}
+//discrete generations, hard carrying capacity, census and update fitness
+1 early() {
+	sim.rescheduleScriptBlock(s1, start=t, end=t); //define end point of sim
+}
+1: early() {
+	//initialize population
+	if (sim.generation == 1) {
+		sim.addSubpop("p1", N); //initialize population of wildtypes
+		sim.outputFull("/tmp/slim_" + simID + ".txt"); //output this initial state to use for future runs if needed
+	}
+	//enforce discrete generations
+	inds = sim.subpopulations.individuals; //get info on all individuals
+	inds[inds.age > 0].fitnessScaling = 0.0; //parents all die at next instance of viability selection
+	//hard carrying capacity by random culling
+	off = inds[inds.age == 0]; //offspring
+	Nt = length(off); //total number of offspring
+	indices = which(inds.age == 0); //indices of offspring
+	if (Nt > K) { //if more than K...
+		inds[sample(indices, Nt-K)].fitnessScaling = 0.0; //...kill a random subset to reduce Nt to K
+		off = inds[inds.fitnessScaling > 0]; //get surviving offspring
+	}	
+	//fitness scaling (viability selection occurs after early events)
+	p1.fitnessScaling = (1.0 - d)/B; //survival probability V = X(1-d)/B, where X is the fitness effect of the selected site (X=1 for wildtype, X=1+s*h for heterozygotes, X=1+s for mutant homozygotes)
+}
+1: late() {
+	// census
+        inds = sim.subpopulations.individuals;
+	Nt = length(inds); //population size
+	if (Nt==0) { //if fail to adapt
+		catn("all hope was lost in generation " + sim.generation + " - RESTARTING"); //alert the user
+		sim.readFromPopulationFile("/tmp/slim_" + simID + ".txt"); //reinitialize simulation
+	}
+	else {           
+		freq = sum(asInteger(inds.genomes.countOfMutationsOfType(m1)>0))/(2*Nt); //frequency of beneficial mutation
+		catn(sim.generation + ": " + Nt + ", " + freq); //print generation and population size and frequency of derived allele
+        	if (freq == 1.0 & Nt > K/B) { //if mutation fixed and population recovered
+			catn("rescue complete in generation " + sim.generation);
+        		sim.simulationFinished(); //end simulation
+        		sim.treeSeqOutput(output); //save tree sequence
+        	}
+	}
+}
+//backup: end simulation if runs too long and print warning to increase maxt
+s1 late () {
+	catn("times up, make maxt longer!");
+	sim.simulationFinished();
+}
