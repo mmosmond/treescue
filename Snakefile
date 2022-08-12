@@ -84,7 +84,11 @@ rule vcf:
     ts = ts.simplify(ind_nodes, keep_input_roots=True) #simplify down to sample while keeping roots for recapitation
     ts = pyslim.update(ts) #using beta pyslim for slim 4.0 but trees made with slim 3.7.1, so update
     ts = pyslim.recapitate(ts, recombination_rate=float(wildcards.r), ancestral_Ne=float(wildcards.Ne)) #recapitate trees
-    ts = msprime.sim_mutations(ts, rate=float(wildcards.U), model=msprime.SLiMMutationModel(type=0), keep=True) #layer on neutral mutations while keeping the selected mutation
+    #ts = msprime.sim_mutations(ts, rate=float(wildcards.U), model=msprime.SLiMMutationModel(type=0), keep=True) #layer on neutral mutations while keeping the selected mutation
+    #ts = msprime.sim_mutations(ts, rate=float(wildcards.U), model=msprime.BinaryMutationModel(), keep=True) #layer on neutral mutations while keeping the selected mutation
+    #ts = pyslim.generate_nucleotides(ts) #https://github.com/tskit-dev/pyslim/pull/174
+    #ts = pyslim.convert_alleles(ts)
+    ts = msprime.sim_mutations(ts, rate=float(wildcards.U), model=msprime.JC69()) #layer on neutral mutations (drop fixed rescue mutation because not biallelic)
     with open(output[0], "w") as vcf_file:
       ts.write_vcf(vcf_file, individuals = range(int(wildcards.k))) #write out as VCF with arbitrary ID names
 
@@ -150,13 +154,14 @@ rule infer_trees:
   output:
     expand(inf_trees, END=ANCMUT, allow_missing=True)
   params:
-    prefix=inf_trees.replace(DATADIR,'').replace('.{END}','')
+    prefix=inf_trees.replace(DATADIR,'').replace('.{END}',''),
+    twoNe=lambda wildcards: 2*int(wildcards.Ne)
   shell:
     '''
     {RELATE}/bin/Relate \
       --mode All \
       -m {wildcards.U} \
-      -N {wildcards.Ne} \
+      -N {params.twoNe} \
       --haps {input[0]} \
       --sample {input[1]} \
       --map {input[2]} \
@@ -207,41 +212,44 @@ rule coal_rates:
     {RELATE}/scripts/EstimatePopulationSize/EstimatePopulationSize.sh \
               -i {params.prefix} \
               -m {wildcards.U} \
+              --years_per_gen 1 \
               --poplabels {input[2]} \
               --seed 1 \
+              --num_iter 5 \
               -o {params.prefix_out}
     '''
 
 # ----------- branch lengths ----------------
 
 branch_lengths = coal_rates.replace('.{END}','_sub.{END}')
-NEWICKSITES = ['newick','sites'] 
+TIMEB = ['timeb'] 
 
 rule sample_branch_lengths_all:
   input:
-    expand(branch_lengths, N=Ns, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, L=Ls, r=rs, t=ts, n=ns, k=ks, Ne=Nes, U=Us, END=NEWICKSITES)
+    expand(branch_lengths, N=Ns, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, L=Ls, r=rs, t=ts, n=ns, k=ks, Ne=Nes, U=Us, END=TIMEB)
 
 rule sample_branch_lengths:
   input:
     expand(coal_rates, END=ANCMUTCOAL, allow_missing=True)
   output:
-    expand(branch_lengths, END=NEWICKSITES, allow_missing=True)
+    expand(branch_lengths, END=TIMEB, allow_missing=True)
   params:
     prefix=coal_rates.replace('.{END}',''),
     prefix_out=branch_lengths.replace('.{END}',''),
     L0=lambda wildcards: round(int(wildcards.L)/2)
   shell:
     '''
+    # find SNP close to selected site (closest that is larger)
+    S=$(awk -F';' '(NR>1 && $2>{params.L0}){{print $2; exit}}' {input[1]})
     {RELATE}/scripts/SampleBranchLengths/SampleBranchLengths.sh \
                  -i {params.prefix}\
                  -o {params.prefix_out} \
                  -m {wildcards.U} \
                  --coal {input[2]} \
-                 --format n \
+                 --format b \
                  --num_samples 5 \
-                 --first_bp {params.L0} \
-                 --last_bp {params.L0} \
+                 --first_bp $S \
+                 --last_bp $S \
                  --seed 1 
     '''
-
-
+# this fails since we dont have a SNP at the selected site, L0. so we need to either end the simulation before fixation or track a neighboring SNP.

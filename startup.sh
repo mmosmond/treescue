@@ -21,7 +21,7 @@ source ~/.virtualenvs/$myenv/bin/activate
 
 #other modules
 #pip install numpy
-pip install pyslim==1.0b1 #because current release has errors recapitating: https://github.com/tskit-dev/pyslim/issues/271
+#pip install pyslim==1.0b1 #because current release has errors recapitating: https://github.com/tskit-dev/pyslim/issues/271
 
 # for jupyter hub
 #pip install ipykernel
