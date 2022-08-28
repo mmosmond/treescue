@@ -1,4 +1,5 @@
-initialize() {
+initialize() 
+{
 	defineConstant("simID", getSeed()); //get the random seed to label temporary file
 	
 	initializeSLiMModelType("nonWF"); //non Wright Fisher model
@@ -15,6 +16,7 @@ initialize() {
 	initializeGenomicElement(g2, L0 + 1, L); // ...and everything to the right of LO
 	initializeMutationRate(c(0,u,0), c(L0-1, L0, L)); //mutation rate per site 
 	initializeRecombinationRate(r); //recombination rate between sites
+	writeFile(output_dynamics, "t n p"); //start writing to the dynamics file  
 }
 reproduction() { //occurs immediately before early events
 	for (i in 1:B) //B matings per parent
@@ -23,13 +25,14 @@ reproduction() { //occurs immediately before early events
 //discrete generations, hard carrying capacity, census and update fitness
 1 early() {
 	sim.rescheduleScriptBlock(s1, start=t, end=t); //define end point of sim
+	//initialize population
+	sim.addSubpop("p1", K); //initialize population of wildtypes
+	target = sample(p1.genomes, q); //choose q chromosomes without replacement...
+	for (i in target)
+		 i.addNewDrawnMutation(m1, L0); //... and give beneficial mutation
+	sim.outputFull("/tmp/slim_" + simID + ".txt"); //output this initial state to use for future runs if needed
 }
 1: early() {
-	//initialize population
-	if (sim.generation == 1) {
-		sim.addSubpop("p1", N); //initialize population of wildtypes
-		sim.outputFull("/tmp/slim_" + simID + ".txt"); //output this initial state to use for future runs if needed
-	}
 	//enforce discrete generations
 	inds = sim.subpopulations.individuals; //get info on all individuals
 	inds[inds.age > 0].fitnessScaling = 0.0; //parents all die at next instance of viability selection
@@ -48,17 +51,21 @@ reproduction() { //occurs immediately before early events
 	// census
         inds = sim.subpopulations.individuals;
 	Nt = length(inds); //population size
-	if (Nt==0) { //if fail to adapt
+	freq = sum(asInteger(inds.genomes.countOfMutationsOfType(m1)>0))/(2*Nt); //frequency of beneficial mutation
+	if ((u==0 & freq == 0) | (Nt==0)) { //if fail to adapt
+	//if (Nt==0) { //if fail to adapt
+                writeFile(output_dynamics, "t n p"); //erase and restart the output file
 		catn("all hope was lost in generation " + sim.generation + " - RESTARTING"); //alert the user
 		sim.readFromPopulationFile("/tmp/slim_" + simID + ".txt"); //reinitialize simulation
 	}
 	else {           
-		freq = sum(asInteger(inds.genomes.countOfMutationsOfType(m1)>0))/(2*Nt); //frequency of beneficial mutation
 		catn(sim.generation + ": " + Nt + ", " + freq); //print generation and population size and frequency of derived allele
-        	if (freq == 1.0 & Nt > K/B) { //if mutation fixed and population recovered
+                writeFile(output_dynamics, sim.generation + " " + Nt + " " + freq, append=T);
+        	//if (freq == 1.0 & Nt > K/B) { //if mutation fixed and population recovered
+                if (freq > f) { //trying for establishment only, leaving rescue mutation as SNP to be discovered (but note that it is not guaranteed the popn is recovered)
 			catn("rescue complete in generation " + sim.generation);
         		sim.simulationFinished(); //end simulation
-        		sim.treeSeqOutput(output); //save tree sequence
+        		sim.treeSeqOutput(output_trees); //save tree sequence
         	}
 	}
 }
