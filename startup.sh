@@ -48,3 +48,34 @@ export XDG_CACHE_HOME=~/scratch
 # make DATADIR
 mkdir -p data
 
+# argweaver
+# note this requires python2 and gcc (for some reason this only works with the gcc in the intel module, maybe that is connected to python2 better?)
+# module load python/2.7.15
+# pip2 install virtualenv
+# virtualenv ~/.virtualenvs/argweaver
+# source ~/.virtualenvs/argweaver/bin/activate
+# module load intel
+# pip install argweaver
+# actually, dont use pip, do it this way to get newer mjhubisz version
+# git clone https://github.com/mjhubisz/argweaver programs/argweaver
+# cd programs/argweaver
+# python2 setup.py install
+
+# this actually works:
+# module load intelpython2
+# module load gcc
+# cd programs
+# git clone https://github.com/CshlSiepelLab/argweaver.git
+# cd argweaver
+# make
+# make install prefix=$HOME/local
+# export PATH=$HOME/local:PATH
+# export PYTHONPATH=$HOME/local/lib/python2.7/site-packages
+# now you can run arg-sim and arg-sample examples
+# to use smc2bed-all you need to get samtools and bedops
+# module load samtools
+# wget https://github.com/bedops/bedops/releases/download/v2.4.41/bedops_linux_x86_64-v2.4.41.tar.bz2
+# tar jxvf bedops_linux_x86_64-v2.4.41.tar.bz2
+# mv bin bedops
+# export PATH=/home/m/mmosmond/mmosmond/scratch/projects/tsrescue/programs/bedops:$PATH
+# now you can run smc2bed on the examples 
