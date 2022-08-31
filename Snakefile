@@ -462,8 +462,15 @@ niters = 3000 #number of MCMC iterations (save every 10th by default)
 ARGS = [str(i) + '.smc.gz' for i in range(0,niters+1,10)]
 
 # let's use the time discretization from the CLUES paper (to make sure we can recreate their results)
-# wget https://github.com/standard-aaron/clues-v0/blob/master/misc/N_10000_timesfile.txt
 timesfile = DATADIR + 'N_10000_timesfile.txt'
+rule get_timesfile:
+  input:
+  output:
+    timesfile
+  shell:
+    '''
+    wget https://raw.githubusercontent.com/standard-aaron/clues-v0/master/misc/N_10000_timesfile.txt -P {DATADIR}
+    '''
 
 rule argweaver_all:
   input:
@@ -495,7 +502,7 @@ rule argweaver:
       --resample-window-iters 8 \
       --infsites
     '''
-# above takes 9m
+# takes about 10m
 
 # and now we follow https://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1008384 to extract the newick trees at the selected site
 arg_trees_ends = ['bed.gz','trees']
@@ -559,5 +566,28 @@ rule argweaver_clues:
       --noAncientHap \
       --thin 10 \
       --burnin 100 \
+      --approx 0 \
+      --derivedAllele 'C'
     '''
- 
+
+# ---------------- convert relate trees to tree sequence ------------------
+
+rule ancmut_to_ts_all:
+  input:
+    expand(coal_rates, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=['trees'])
+
+rule ancmut_to_ts:
+  input:
+    expand(coal_rates, END=ANCMUTCOAL, allow_missing=True)
+  output:
+    expand(coal_rates, END=['trees'], allow_missing=True) 
+  params:
+    prefix = coal_rates.replace('.{END}','')
+  shell:
+    '''
+    module load gcc/8.3.0 #needed for relate
+    {RELATE}/bin/RelateFileFormats \
+      --mode ConvertToTreeSequence \
+      -i {params.prefix} \
+      -o {params.prefix}
+    '''
