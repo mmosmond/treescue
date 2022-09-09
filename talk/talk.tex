@@ -5,7 +5,7 @@
 %\setbeamercolor{background canvas}{bg=black}
 %\setbeamercolor{normal text}{fg=white}
 
-% Title page details: 
+% Title page details:
 \title{Genetic signatures of evolutionary rescue}
 \author{Matthew Osmond}
 \institute{Department of Ecology and Evolutionary Biology\\ University of Toronto}
@@ -25,7 +25,7 @@
 % a large and quickly growing number of experiments of increasing complexity and detail: verifying theory and discovering additional factors
 % many examples of drug resistance, eg HIV, in asexual microbes: stressing an applied need to understand rescue for human health
 % a big question that remains is: how common is rescue in wild sexual species? conservation angle
-% evidence of the excitement around this question: a recent spike in claims for rescue in wild sexual species (amaranthus, killifish, arabidopsis, bats, etc) 
+% evidence of the excitement around this question: a recent spike in claims for rescue in wild sexual species (amaranthus, killifish, arabidopsis, bats, etc)
 % however, still unclear how confidently we can identify rescue from (predominately) contemporary genetic data
 % this is a new direction for rescue theory
 
@@ -53,7 +53,7 @@
 		\end{itemize}
 		\item a big question remains \pause
 	\end{itemize}
-	
+
 	\begin{block}{Q}
 		How common is rescue in wild sexual species?
 	\end{block}
@@ -72,9 +72,9 @@
 	\begin{alertblock}{To do}
 		images of organisms
 	\end{alertblock}
-	
+
 	A lot of excitement around this question right now, eg \pause
-	
+
 	\begin{itemize}
 		\item Hares rescued from lack of snow (Mills et al. 2018) \pause
 		\item Bats rescued from white-nose syndrome (Gignoux-Wolfsohn et al. 2018) \pause
@@ -93,11 +93,11 @@
 	\begin{itemize}
 		\item for most wild species all we have is contemporary data \pause
 	\end{itemize}
-	
+
 	\begin{block}{Q}
 		Can we infer past rescue from a bunch of genomes?
 	\end{block}
-	
+
 \end{frame}
 
 % ==============================================
@@ -114,17 +114,17 @@
 	\begin{alertblock}{To do}
 		plot from our paper
 	\end{alertblock}
-	
+
 	\begin{itemize}
 		\item Graham Coop and I started down this path (Osmond \& Coop 2020) \pause
 		\item coalescent model of rescue via a selective sweep \pause
 		\item concluded that it is very difficult to infer rescue from summary statistics \pause
 	\end{itemize}
-	
+
 	\begin{block}{Q}
 		But what if we could observe the coalescent itself?
-	\end{block}	
-	
+	\end{block}
+
 \end{frame}
 
 % ==============================================
@@ -136,7 +136,7 @@
 
 \begin{frame}
 	\frametitle{But what if we could observe the coalescent itself?}
-	
+
 	\begin{alertblock}{To do}
 		plot of trees
 	\end{alertblock}
@@ -148,14 +148,14 @@
 			\item Relate (Speidel et al. 2019) \pause
 		\end{itemize}
 	\end{itemize}
-		
+
 \end{frame}
 
 % ==============================================
 
 \begin{frame}
 	\frametitle{But what if we could observe the coalescent itself?}
-	
+
 	\begin{alertblock}{To do}
 		plot of demo and evol inference
 	\end{alertblock}
@@ -167,9 +167,9 @@
 			\item CLUES (Stern et al. 2019) \pause
 		\end{itemize}
 	\end{itemize}
-		
+
 \end{frame}
-		
+
 % ==============================================
 
 \begin{frame}
@@ -178,7 +178,7 @@
 	\begin{alertblock}{To do}
 		plots from papers
 	\end{alertblock}
-	
+
 	\begin{itemize}
 		\item already been used for rescue, eg \pause
 		\begin{itemize}
@@ -186,11 +186,11 @@
 			\item Fulgione et al. 2022 (Relate, CLUES) \pause
 		\end{itemize}
 	\end{itemize}
-	
+
 	\begin{block}{Q}
 		How well do inferred trees infer rescue?
-	\end{block}	
-	
+	\end{block}
+
 \end{frame}
 
 % ==============================================
@@ -201,7 +201,7 @@
 
 \begin{frame}
 	\frametitle{How well do inferred trees infer rescue?}
-	
+
 	\begin{itemize}
 		\item simulate rescue via selective sweep in SLiM (Haller et al. 2019) \pause
 		\item infer trees from resulting VCF \pause
@@ -215,12 +215,14 @@
 
 \begin{frame}
 	\frametitle{How well do inferred trees infer rescue?}
-	
+
 	\begin{itemize}
-		\item control: inferring a selective sweep with constant population size \pause
+		\item control: inferring a sweep with constant population size \pause
 	\end{itemize}
 
-	\includegraphics[]{}
+	\begin{center}
+		\includegraphics[width=0.5\linewidth]{{../images/sim_10000K_0d_0.01s_0.5h_2B_0u_1q_1000000L_1.25e-08r_0.75f_10n_25k_2.5e-08U}.png}
+	\end{center}
 
 \end{frame}
 
@@ -240,4 +242,3 @@
 % hejase et al 2022: relate and SIA better at detecting seln than sum stats when selection weak and DAF low (fig 2); CLUES tends to understimate strong seln coefficients with true trees (fig 3), CLUES very much underestimates s when using inferred Relate trees (fig 4) -- note that comparing this to stern et al 2019 means that the error is coming from Relate, and that ARGweaver should do better, compare fig 4 and s5 in hejase (clues better with argweaver, but still not great and a TON of variation)
 
 \end{document}
-
