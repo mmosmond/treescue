@@ -22,10 +22,10 @@ hs = [0.5] #dominance coefficient of derived allele: absolute fitness of the het
 Bs = [2] #number of offspring per parent (note we divide viability by this so that it does not affect the expected number of offspring (absolute fitness), but it will affect the variance in the number of offspring (Ne))
 us = [0] #mutation rate at selected site (will add neutral mutations to other sites after with msprime)
 qs = [1] #number of beneficial mutations at time 0
-Ls = [int(1e5)] #number of sites minus 1 (note SLiM 0 indexes sites; will put selected site in middle) 
+Ls = [int(1e6)] #number of sites minus 1 (note SLiM 0 indexes sites; will put selected site in middle) 
 rs = [1.25e-8] #recombination rate per site
 fs = [0.75] #beneficial allele frequency to stop at
-ns = range(1) #replicates
+ns = range(10) #replicates
 t = int(1e4) #max number of generations (to prevent simulations from running forever) 
 # for vcfs
 ks = [25] #number of individuals to sample (get twice as many genomes)
@@ -42,10 +42,12 @@ rule simulate_all:
 
 rule simulate:
   input:
-#    "scripts/sim.slim"
-    "scripts/simWF.slim" #testing with WF
+    #lambda wildcards: "scripts/simWF.slim" if wildcards.d == 0 else "scripts/sim.slim" #would like this with WF as control but doesnt work
+    "scripts/sim.slim"
   output:
     expand(sim_output, END=sim_ends, allow_missing=True)
+#  params:
+#    script = lambda wildcards: "scripts/simWF.slim" if wildcards.d == 0 else "scripts/sim.slim" #also doesn't work
   shell:
     """
     module load gcc/8.3.0 #needed for slim
@@ -64,7 +66,7 @@ rule simulate:
       -d t={t} \
       -d "output_dynamics='{output[0]}'" \
       -d "output_trees='{output[1]}'" \
-      {input}
+      {input[0]}
     """
 
 # ---------- trees and vcfs --------
@@ -82,8 +84,8 @@ rule trees:
   output:
     expand(sim_trees, END=TREES, allow_missing=True)
   params:
-#    Ne = lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3)
-    Ne = lambda wildcards: int(wildcards.K) #for WF test
+    #Ne = lambda wildcards: int(wildcards.K) if wildcards.d==0 else int(wildcards.K)*4/(2+4*int(wildcards.B)-3) #Ne=K if WF (which is assumed if d=0), otherwise Ne depends on B too 
+    Ne = lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
   run:
     ts = tskit.load(input[0]) #load tree sequence
     inds = np.random.choice(range(ts.num_individuals), int(wildcards.k), replace=False) #sample k individuals at random
@@ -119,7 +121,7 @@ rule haps:
   output:
     expand(sim_hapsample, END=HAPSAMPLE, allow_missing=True)
   params:
-    prefix=sim_trees.replace('.{END}','')
+    prefix = sim_trees.replace('.{END}','')
   shell:
     '''
     module load gcc/8.3.0 #needed for relate
@@ -167,9 +169,9 @@ rule infer_trees:
   output:
     expand(inf_trees, END=ANCMUT, allow_missing=True)
   params:
-    prefix=inf_trees.replace(DATADIR,'').replace('.{END}',''),
-#    twoNe=lambda wildcards: 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3)
-    twoNe = lambda wildcards: 2*int(wildcards.K) #for WF test
+    prefix = inf_trees.replace(DATADIR,'').replace('.{END}',''),
+    #twoNe = lambda wildcards: 2*int(wildcards.K) if wildcards.d == 0 else 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+    twoNe = lambda wildcards: 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
   shell:
     '''
     module load gcc/8.3.0 #needed for relate
@@ -218,8 +220,8 @@ rule coal_rates:
   output:
     expand(coal_rates, END=ANCMUTCOAL, allow_missing=True)
   params:
-    prefix=inf_trees.replace('.{END}',''),
-    prefix_out=coal_rates.replace('.{END}','')
+    prefix = inf_trees.replace('.{END}',''),
+    prefix_out = coal_rates.replace('.{END}','')
   shell:
     '''
     #module load intel/2019u4 #needed for r (gcc also has r but doesnt have needed libraries)
@@ -235,11 +237,12 @@ rule coal_rates:
               --num_iter 5 \
               --threshold 0 \
               -o {params.prefix_out} \
-              --bins 1,5,0.5
+              --bins 2,5,0.5
     '''
+# note the min bin shouldn't be so small that no coal happens, as this causes Ne=inf
 
 # -------------- plot tree at selected site -------------
-
+# dont worry about this, will instead convert to tskit ts and plot all with tskit for uniformity
 plot_tree = coal_rates.replace('.{END}','.pdf')
 
 rule plot_tree_all:
@@ -255,7 +258,7 @@ rule plot_tree:
     plot_tree
   params:
     prefix_out = plot_tree.replace('.pdf',''),
-    L0=lambda wildcards: round(int(wildcards.L)/2)
+    L0 = lambda wildcards: round(int(wildcards.L)/2)
   shell:
     '''
     module load gcc/8.3.0 #needed for relate
@@ -287,8 +290,8 @@ rule detect_selection:
   output:
     expand(selection, END=LINFREQSELE, allow_missing=True) 
   params:
-    prefix_in=coal_rates.replace('.{END}',''),
-    prefix_out=selection.replace('.{END}','')
+    prefix_in = coal_rates.replace('.{END}',''),
+    prefix_out = selection.replace('.{END}','')
   shell:
     '''
     module load gcc/8.3.0
@@ -313,9 +316,9 @@ rule sample_branch_lengths:
   output:
     branch_lengths
   params:
-    prefix=coal_rates.replace('.{END}',''),
-    prefix_out=branch_lengths.replace('.timeb',''),
-    L0=lambda wildcards: round(int(wildcards.L)/2)-1 #selected site - 1
+    prefix = coal_rates.replace('.{END}',''),
+    prefix_out = branch_lengths.replace('.timeb',''),
+    L0 = lambda wildcards: round(int(wildcards.L)/2)-1 #selected site - 1
   shell:
     '''
     # find SNP close to selected site (equal to or larger)
@@ -337,21 +340,21 @@ rule sample_branch_lengths:
 # ------------- selection coefficient and allele frequency inference --------------
 
 allele_freq = coal_rates.replace('.{END}', '_clues.{END}')
-CLUESENDS=['timeBins', 'epochs.npy','freqs.npy','post.npy','png']
+CLUESENDS = ['timeBins', 'epochs.npy','freqs.npy','post.npy', 'png']
 
 rule clues_all:
   input:
-    expand(allele_freq, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=CLUESENDS)
+    expand(allele_freq, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=CLUESENDS[:-1])
 
 rule clues:
   input:
     expand(coal_rates, END=['coal'], allow_missing=True),
     branch_lengths
   output:
-    expand(allele_freq, END=CLUESENDS, allow_missing=True)
+    expand(allele_freq, END=CLUESENDS[:-1], allow_missing=True)
   params:
-    prefix_in=branch_lengths.replace('.timeb',''),
-    prefix_out=allele_freq.replace('.{END}','')
+    prefix_in = branch_lengths.replace('.timeb',''),
+    prefix_out = allele_freq.replace('.{END}','')
   shell:
     '''
     for i in {{0,1000}}; do echo "$i" >> {output[0]}; done
@@ -359,12 +362,11 @@ rule clues:
     python inference.py \
       --coal ../../{input[0]} \
       --times ../../{params.prefix_in} \
-      --out ../../{params.prefix_out} 
-    #  --sMax 1 
-    #  --tCutoff {t}
-    # --timeBins ../../{output[0]}
-    # --popFreq {wildcards.f} 
-    python plot_traj.py --ext {CLUESENDS[4]} ../../{params.prefix_out} ../../{params.prefix_out} 
+      --out ../../{params.prefix_out} \
+      --popFreq {wildcards.f}
+      --sMax 1 #default max is 0.1
+      --timeBins ../../{output[0]} #default is one epoch from 0 to tCutoff but can generalize with this
+    # python plot_traj.py --ext {CLUESENDS[4]} ../../{params.prefix_out} ../../{params.prefix_out} #plot as heatmap (will just plot myself)
     '''
 
 # --------------- true coalescence times ---------------
@@ -382,7 +384,7 @@ rule coal_times:
   output:
     expand(coal_times, END=ANCDERTXT, allow_missing=True)
   params:
-    L0=lambda wildcards: round(int(wildcards.L)/2)
+    L0 = lambda wildcards: round(int(wildcards.L)/2)
   run:
     ts = tskit.load(input[0]) #load true tree sequence
     tree = ts.at(params.L0) #get tree at selected site
@@ -393,28 +395,84 @@ rule coal_times:
     for node in tree.nodes(): #iterate through all nodes
       if tree.num_children(node) == 2: #check that this is a coalescence node in this tree
         time = ts.node(node).time #time of coalescence
-        if time < muttime: # only go back to time of mutation (everything beyond that is neutral)
-          if tree.is_descendant(node, mutnode): #if it is below the mutation
-            dertimes.append(time) #add coalescence time
-          else: # if not below the mutation
-            anctimes.append(time) #add coalescence time
+        #if time < muttime: # only go back to time of mutation (everything beyond that is neutral) -- actually, clues takes these times as ancestral
+        if tree.is_descendant(node, mutnode): #if it is below the mutation
+          dertimes.append(time) #add coalescence time
+        else: # if not below the mutation
+          anctimes.append(time) #add coalescence time
+    anctimes = np.sort(np.array([anctimes]))
+    dertimes = np.sort(np.array([dertimes]))
     np.savetxt(output[0], anctimes) #output
     np.savetxt(output[1], dertimes)
 
+# ------------- use true coal rates too ------------------
+
+true_coal = coal_rates.replace('.{END}','_true.coal')
+
+rule true_coal_all:
+  input:
+    expand(true_coal, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us)
+
+rule true_coal:
+  input:
+    expand(coal_rates, END=['coal'], allow_missing=True)
+  output:
+    true_coal
+  params:
+    #twoNe = lambda wildcards: 2*int(wildcards.K) if wildcards.d == 0 else 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+    twoNe = lambda wildcards: 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+  run:
+    with open(input[0],'r') as fin:
+      with open(output[0],'w') as fout:
+        for i,line in enumerate(fin.readlines()):
+          if i==2:
+            data = line.split(' ')
+            data[2:-1] = [str(1/params.twoNe) for i in data[2:-1]]
+            line = " ".join(data)
+          fout.writelines(line)
+    
+# ------------- actually, we can run clues with the true data more straightforwardly like this -----------
+# this should work but relate_lib doesnt seem to work -- maybe because new tskit version?
+
+true_relate_trees = sim_trees.replace('.{END}','_true.{END}')
+
+rule true_relate_trees_all:
+  input:
+    expand(true_relate_trees, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=ANCMUT)
+
+rule true_relate_trees:
+  input:
+    expand(sim_trees, END=['trees'], allow_missing=True)
+  output:
+    expand(true_relate_trees, END=ANCMUT, allow_missing=True)
+  params:
+    prefix_in = sim_trees.replace('.{END}','')
+  shell:
+    '''
+    module load gcc/8.3.0 #needed for relate
+    ./programs/relate_lib/bin/Convert \
+      --mode ConvertFromTreeSequence \
+      --anc {output[0]} \
+      --mut {output[1]} \
+      -i {params.prefix_in}
+    '''
+
 # ------------- selection coefficient and allele frequency inference with true data --------------
+# note that i had to customize clues/inference.py to get this to work
 
 allele_freq_true = coal_rates.replace('.{END}', '_clues_true.{END}')
 
 rule clues_true_all:
   input:
-    expand(allele_freq_true, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=CLUESENDS)
+    expand(allele_freq_true, K=Ks, d=ds, s=ss, h=hs, B=Bs, u=us, q=qs, L=Ls, r=rs, f=fs, n=ns, k=ks, U=Us, END=CLUESENDS[:-1])
 
 rule clues_true:
   input:
-    expand(coal_rates, END=['coal'], allow_missing=True),
+#    expand(coal_rates, END=['coal'], allow_missing=True),
+    true_coal,
     expand(coal_times, END=ANCDERTXT, allow_missing=True)
   output:
-    expand(allele_freq_true, END=CLUESENDS, allow_missing=True)
+    expand(allele_freq_true, END=CLUESENDS[:-1], allow_missing=True)
   params:
     prefix_in=coal_times.replace('.{END}',''),
     prefix_out=allele_freq_true.replace('.{END}','')
@@ -425,12 +483,11 @@ rule clues_true:
     python inference.py \
       --coal ../../{input[0]} \
       --times ../../{params.prefix_in} \
-      --out ../../{params.prefix_out}
-    #  --popFreq {wildcards.f}
-    #  --sMax 1 #this didnt help 
-    #  --tCutoff {t}
-    # --timeBins ../../{output[0]}
-    python plot_traj.py --ext {CLUESENDS[4]} ../../{params.prefix_out} ../../{params.prefix_out} 
+      --out ../../{params.prefix_out} \
+      --popFreq {wildcards.f}
+      --sMax 1 #this didnt help 
+      --timeBins ../../{output[0]}
+    # python plot_traj.py --ext {CLUESENDS[4]} ../../{params.prefix_out} ../../{params.prefix_out} 
     '''
 
 # -------------- argweaver -----------------
@@ -484,11 +541,13 @@ rule argweaver:
     expand(args, END=ARGS, allow_missing=True)
   params:
     prefix = args.replace('.{END}',''),
-#    Ne=lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3)
-    Ne = lambda wildcards: int(wildcards.K) #for WF test
+    #Ne = lambda wildcards: int(wildcards.K) if wildcards.d==0 else int(wildcards.K)*4/(2+4*int(wildcards.B)-3) #Ne=K if WF (which is assumed if d=0), otherwise Ne depends on B too 
+    Ne = lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3), #Ne=K if WF (which is assumed if d=0), otherwise Ne depends on B too 
+    start = lambda wildcards: int(int(wildcards.L)/2 - 1e5/2), #slow, so only look at region around selected site
+    end = lambda wildcards: int(int(wildcards.L)/2 + 1e5/2),
   shell:
     '''
-    $HOME/local/bin/arg-sample \
+    ./programs/argweaver/local/bin/arg-sample \
       -s {input[0]} \
       -o {params.prefix} \
       -N {params.Ne} \
@@ -500,7 +559,8 @@ rule argweaver:
       -n {niters} \
       --resample-window 40000 \
       --resample-window-iters 8 \
-      --infsites
+      --infsites \
+      --region {params.start}-{params.end}
     '''
 # takes about 10m
 
@@ -523,7 +583,7 @@ rule argweaver_trees:
     '''
     module load samtools # we need tabix and bgzip
     export PATH=$SCRATCH/projects/tsrescue/programs/bedops/bin:$PATH #this gives us bedops' sort-bed
-    export PATH=$HOME/local/bin:$PATH #argweaver tools
+    export PATH=$SCRATCH/projects/tsrescue/programs/argweaver/local/bin:$PATH #argweaver tools
     smc2bed-all {params.prefix} #this makes output[0] 
     arg-summarize \
       -a {output[0]} \
@@ -571,6 +631,7 @@ rule argweaver_clues:
     '''
 
 # ---------------- convert relate trees to tree sequence ------------------
+# for plotting
 
 rule ancmut_to_ts_all:
   input:
