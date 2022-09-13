@@ -16,7 +16,7 @@ CLUES = PROGRAMDIR + 'clues'
 
 # for simulations 
 Ks = [int(1e4)] #carrying capacity
-ds = [0] #decline rate of ancestral homozygote: absolute fitness 1-d
+ds = [-1] #decline rate of ancestral homozygote: absolute fitness 1-d
 ss = [0.01] #selection coefficient of derived allele: absolute fitness of derived homozygote (1-d)(1+s)
 hs = [0.5] #dominance coefficient of derived allele: absolute fitness of the heterozygote (1-d)(1+hs)
 Bs = [2] #number of offspring per parent (note we divide viability by this so that it does not affect the expected number of offspring (absolute fitness), but it will affect the variance in the number of offspring (Ne))
@@ -43,7 +43,8 @@ rule simulate_all:
 rule simulate:
   input:
     #lambda wildcards: "scripts/simWF.slim" if wildcards.d == 0 else "scripts/sim.slim" #would like this with WF as control but doesnt work
-    "scripts/sim.slim"
+#    "scripts/sim.slim"
+    "scripts/simWF.slim"
   output:
     expand(sim_output, END=sim_ends, allow_missing=True)
 #  params:
@@ -85,7 +86,8 @@ rule trees:
     expand(sim_trees, END=TREES, allow_missing=True)
   params:
     #Ne = lambda wildcards: int(wildcards.K) if wildcards.d==0 else int(wildcards.K)*4/(2+4*int(wildcards.B)-3) #Ne=K if WF (which is assumed if d=0), otherwise Ne depends on B too 
-    Ne = lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+    #Ne = lambda wildcards: int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+    Ne = lambda wildcards: int(wildcards.K)
   run:
     ts = tskit.load(input[0]) #load tree sequence
     inds = np.random.choice(range(ts.num_individuals), int(wildcards.k), replace=False) #sample k individuals at random
@@ -171,8 +173,9 @@ rule infer_trees:
   params:
     prefix = inf_trees.replace(DATADIR,'').replace('.{END}',''),
     #twoNe = lambda wildcards: 2*int(wildcards.K) if wildcards.d == 0 else 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
-    twoNe = lambda wildcards: 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
-  shell:
+    #twoNe = lambda wildcards: 2*int(wildcards.K)*4/(2+4*int(wildcards.B)-3) 
+    twoNe = lambda wildcards: 2*int(wildcards.K)
+   shell:
     '''
     module load gcc/8.3.0 #needed for relate
     {RELATE}/bin/Relate \
